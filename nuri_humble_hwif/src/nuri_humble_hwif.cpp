@@ -31,9 +31,12 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
     hw_efforts_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
-    last_pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
-    pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
-    current_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+    // last_pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+    // pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+    // current_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+    last_pos_value_.resize(2, 0);
+    pos_value_.resize(2, 0);
+    current_value_.resize(2, 0);
 
     // Check the URDF Data
     for (const hardware_interface::ComponentInfo & joint : info_.joints)
@@ -153,6 +156,16 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
         exit(-1);
     }
 
+    node_ = std::make_shared<rclcpp::Node>("my_hardware_interface");
+
+    hc_ctrl_pub_ = node_->create_publisher<nurirobot_msgs::msg::HCControl>("hc/control", 10);
+    hc_joy_pub_ = node_->create_publisher<sensor_msgs::msg::Joy>("hc/joy", 10);
+    spin_thread_ = std::thread([this]() {
+        rclcpp::executors::MultiThreadedExecutor executor;
+        executor.add_node(node_);
+        executor.spin();    
+    });
+
     RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Opened serial port to Nurirobot");
     rclcpp::sleep_for(std::chrono::milliseconds(100));
     commandRemoteStop();
@@ -161,6 +174,7 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
     rclcpp::sleep_for(std::chrono::milliseconds(200));
 
     RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Wait connection to Motor Driver");
+    int cnt = 0;
     while(rclcpp::ok())
     {
         feedbackHCCall();
@@ -168,6 +182,7 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
 
         readHW();
         if (!firstrun) break;
+        if (cnt++ > 5) break;
     }
 
     u8ArrivalSec = std::stof(info_.hardware_parameters["robot_acceleration"]);
@@ -264,6 +279,7 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_deactivate(co
 hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/)
 {
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "read");
+    int cnt = 0;
     while(rclcpp::ok())
     {
         recvFeedback[2] = false;
@@ -272,8 +288,10 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
 
         readHW();
         if (recvFeedback[2]) break;
+        if (cnt++ > 3) break;
     }
 
+    cnt = 0;
     while(rclcpp::ok())
     {
         recvFeedback[0] = false;
@@ -282,8 +300,10 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
 
         readHW();
         if (recvFeedback[0]) break;
+        if (cnt++ > 3) break;
     }
 
+    cnt = 0;
     while(rclcpp::ok())
     {
         recvFeedback[1] = false;
@@ -292,6 +312,7 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
 
         readHW();
         if (recvFeedback[1]) break;
+        if (cnt++ > 3) break;
     }    
 
     hw_positions_[0] += calculate_angle_difference(last_pos_value_[0], pos_value_[0]) / 800.0;
@@ -305,7 +326,7 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
     last_pos_value_[0] = pos_value_[0];
     last_pos_value_[1] = pos_value_[1];
 
-    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "pos :[ %f, %f], current :[ %f, %f]", hw_positions_[0], hw_positions_[1], hw_efforts_[0], hw_efforts_[1]);
+    RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "position : [ %d, %d] pos :[ %f, %f], current :[ %f, %f]", pos_value_[0], pos_value_[1], hw_positions_[0], hw_positions_[1], hw_efforts_[0], hw_efforts_[1]);
 
     return hardware_interface::return_type::OK;
 }
@@ -378,6 +399,7 @@ hardware_interface::return_type NuriSystemHardwareInterface::write(const rclcpp:
 
 void nuri_humble_hwif::NuriSystemHardwareInterface::commandRemoteStop()
 {
+    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "commandRemoteStop");
     FeedbackCallCommand command;
     command.header = (uint16_t)START_FRAME;
     command.id = (uint8_t)0xc0;
@@ -394,6 +416,7 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::commandRemoteStop()
 
 void nuri_humble_hwif::NuriSystemHardwareInterface::commandRemoteStart()
 {
+    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "commandRemoteStart");
     FeedbackCallCommand command;
     command.header = (uint16_t)START_FRAME;
     command.id = (uint8_t)0xc0;
@@ -491,7 +514,7 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::protocol_recv(uint8_t byte)
                     msg->clickbutton = tmp.btn == 4 ? false : true;
                     msg->speed = tmp.speed;
                     u8SpeedStep = tmp.speed;
-                    // hc_ctrl_pub_->publish(*msg);              
+                    hc_ctrl_pub_->publish(*msg);              
 
                     auto joy_msg = std::make_unique<sensor_msgs::msg::Joy>();
                     float x = convertRange(tmp.x);
@@ -503,7 +526,7 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::protocol_recv(uint8_t byte)
 
                     joy_msg->header.stamp = clock_.now();
 
-                    // hc_joy_pub_->publish(*joy_msg);
+                    hc_joy_pub_->publish(*joy_msg);
 
                     RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "y : %d, x:%d, adc: %d, btn: %d", tmp.y, tmp.x, tmp.volt, tmp.btn );
                     if (firstrun) firstrun = false;
@@ -519,34 +542,15 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::protocol_recv(uint8_t byte)
                     uint8_t *dest1 = (uint8_t *)&tmp1;
                     std::memcpy(dest1, src1, msg_len);
 
-                    auto msgpos = std::make_unique<nurirobot_msgs::msg::NurirobotPos>();
-                    msgpos->id = tmp1.id;
-                    msgpos->pos = tmp1.getValuePos(); 
-                    // pos_pub_->publish(*msgpos);
+                    uint16_t tpos = tmp1.getValuePos();
 
-                    auto msglrpos = std::make_unique<nurirobot_msgs::msg::NurirobotPos>();
-                    msglrpos->header.stamp = clock_.now();
-                    msglrpos->header.frame_id = "pos";
-                    msglrpos->id = tmp1.id;
-                    msglrpos->pos = tmp1.getValuePos(); 
-
-                    // if (tmp1.id == 0)
-                    //     left_pos_pub_->publish(*msglrpos);
-                    // else 
-                    //     right_pos_pub_->publish(*msglrpos);
-
-                    auto msgspeed = std::make_unique<nurirobot_msgs::msg::NurirobotSpeed>();
-                    msgspeed->id = tmp1.id;
-                    msgspeed->speed = tmp1.getValueSpeed() * 0.1f;
-                    // speed_pub_->publish(*msgspeed);
-
-                    RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "msgpos->id : %d msgpos->pos : %d", msgpos->id, msgpos->pos);
+                    RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "msgpos->id : %d msgpos->pos : %d", msg.id, tpos);
                     recvFeedback[msg.id == 0? 0 : 1] = true;
                     current_value_[msg.id == 0? 0 : 1] = tmp1.current / 10.0f;
 
-                    pos_value_[msg.id == 0? 0: 1] = msgpos->pos;
+                    pos_value_[msg.id == 0? 0: 1] = tpos;
                     if (!recvLastPos[msg.id == 0? 0: 1]) {
-                        last_pos_value_[msg.id == 0? 0: 1] = msgpos->pos;
+                        last_pos_value_[msg.id == 0? 0: 1] = tpos;
                         recvLastPos[msg.id == 0? 0: 1] = true;
                         RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "=========================== init pos ==============");
                     }
@@ -611,7 +615,47 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::feedbackCall(uint8_t id)
     }
 }
 
+
+void nuri_humble_hwif::NuriSystemHardwareInterface::setRemote_callback(std_msgs::msg::Bool::UniquePtr msg)
+{
+    remote = msg->data;
+
+    if (remote)
+    {
+        commandRemoteStart();
+    }
+    else
+    {
+        commandRemoteStop();
+    }
+}
+
+void nuri_humble_hwif::NuriSystemHardwareInterface::byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg)
+{
+    if (port_fd == -1)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Attempt to write on closed serial");
+        return;
+    }
+
+    int rc = ::write(port_fd, msg->data.data(), msg->data.size());
+    if (rc < 0)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
+        return;
+    }
+
+    // std::ostringstream hex_stream;
+
+    // for (auto byte : msg->data) {
+    //     hex_stream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+    // }
+
+    // std::string hex_string = hex_stream.str();
+    // RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "size: %d, mc_rawdata : %s", msg->data.size(), hex_string);
+}
+
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(
-    nuri_humble_hwif::NuriSystemHardwareInterface, 
+    nuri_humble_hwif::NuriSystemHardwareInterface,
     hardware_interface::SystemInterface)

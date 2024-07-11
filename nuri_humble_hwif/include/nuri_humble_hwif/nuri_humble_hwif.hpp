@@ -11,6 +11,7 @@
 #include "rclcpp/duration.hpp"
 #include "rclcpp/publisher.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "hardware_interface/visibility_control.h"
 #include "nurirobot_msgs/msg/nurirobot_speed.hpp"
@@ -42,6 +43,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdint>
+#include <thread>
 
 
 #include "protocol.hpp"
@@ -51,6 +53,26 @@ namespace nuri_humble_hwif
 class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
 {
     public:
+        // NuriSystemHardwareInterface()
+        // : node_(std::make_shared<rclcpp::Node>("my_hardware_interface"))
+        // {
+        //     RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "Initialize ======== node");
+        //     // Initialize subscription and service
+        //     // subscription_ = node_->create_subscription<std_msgs::msg::UInt8MultiArray>(
+        //     //   "byte_array_topic", 10, std::bind(&NuriSystemHardwareInterface::byteArrayCallback, this, std::placeholders::_1));
+
+        //     // Start a thread to spin the node
+
+        // }
+
+        // ~NuriSystemHardwareInterface()
+        // {
+        //     rclcpp::shutdown();
+        //     if (spin_thread_.joinable()) {
+        //     spin_thread_.join();
+        //     }
+        // }
+
         RCLCPP_SHARED_PTR_DEFINITIONS(NuriSystemHardwareInterface)
 
         HARDWARE_INTERFACE_PUBLIC
@@ -83,6 +105,8 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         void readHW();
 
         void feedbackCall(uint8_t id);
+        void setRemote_callback(std_msgs::msg::Bool::UniquePtr msg);
+        void byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg);
 
     private:
         // LibSerial::SerialPort ser_;
@@ -169,6 +193,17 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
 
             return diff;
         }
+
+        rclcpp::Node::SharedPtr node_;
+        // rclcpp::Subscription<std_msgs::msg::UInt8MultiArray>::SharedPtr subscription_;
+        // rclcpp::Service<your_package::srv::ByteArrayService>::SharedPtr service_;
+        rclcpp::Publisher<nurirobot_msgs::msg::HCControl>::SharedPtr hc_ctrl_pub_;
+        rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr hc_joy_pub_;
+
+        rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr rawdata_sub_;
+        rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr remote_sub_;
+
+        std::thread spin_thread_;
 };
 } // namespace nuri_humble_hwif
 
