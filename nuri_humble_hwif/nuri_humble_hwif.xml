@@ -1,0 +1,9 @@
+<library path="nuri_humble_hwif">
+    <class  name="nuri_humble_hwif/NuriSystemHardwareInterface"
+            type="nuri_humble_hwif::NuriSystemHardwareInterface"
+            base_class_type="hardware_interface::SystemInterface">
+        <description>
+            The ROS2 Control Hardware Interface for Nurirobot System.
+        </description>
+    </class>
+</library>
