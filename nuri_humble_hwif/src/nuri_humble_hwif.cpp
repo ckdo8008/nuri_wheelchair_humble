@@ -31,6 +31,10 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
     hw_efforts_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
+    last_pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+    pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+    current_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
+
     // Check the URDF Data
     for (const hardware_interface::ComponentInfo & joint : info_.joints)
     {
@@ -163,36 +167,6 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
         rclcpp::sleep_for(std::chrono::milliseconds(100));
 
         readHW();
-        // try
-        // {
-        //     // std::string recv_version;
-        //     // ser_.ReadLine(recv_version, '\r', 500);
-
-        //     // if(recv_version[0] == 'F' && recv_version[1] == 'I' && recv_version[2] == 'D')
-        //     // {
-        //     //     RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Connected %s", recv_version.c_str());
-        //     //     break;
-        //     // }
-        //     // char buff;
-        //     // try {
-        //     //     while(true) {
-        //     //         // ser_.ReadByte(&buff, 100);
-        //     //         ser_.ReadByte( buff, 100 );
-        //     //         protocol_recv(buff);
-        //     //     }
-        //     // } catch (const ReadTimeout&) {
-        //     //     RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Read timeout occurred.");
-        //     // } catch (const std::exception& ex) {
-        //     //     RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error reading from Nurirobot serial port: %s", ex.what());
-        //     // }
-            
-        // }
-        // catch(LibSerial::ReadTimeout &e)
-        // {
-        //     rclcpp::sleep_for(std::chrono::milliseconds(2000));
-        //     assert(false);
-        // }
-        // rclcpp::sleep_for(std::chrono::milliseconds(300));
         if (!firstrun) break;
     }
 
@@ -200,35 +174,6 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
     // auto robot_dec = std::stof(info_.hardware_parameters["robot_deceleration"]);
     RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Get robot_acceleration [%6.1f] sec", u8ArrivalSec / 10.0);
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Get robot_deceleration [%6.1f] RPM/s", robot_dec / 10.0);
-
-    // ser_.Write("!R 2\r"); // Restart Script
-    // ser_.DrainWriteBuffer();
-    // rclcpp::sleep_for(std::chrono::milliseconds(1000));
-    // ser_.FlushIOBuffers();
-
-    // ser_.Write("!B 3 1\r");
-    // ser_.DrainWriteBuffer();
-    // rclcpp::sleep_for(std::chrono::milliseconds(100));
-    // ser_.FlushIOBuffers();
-
-
-    // auto conf_str = boost::format("!AC 1 %1%\r") % int(robot_acc);
-    // ser_.Write(conf_str.str());
-    // ser_.DrainWriteBuffer();
-    // rclcpp::sleep_for(std::chrono::milliseconds(100));
-    // conf_str = boost::format("!AC 2 %1%\r") % int(robot_acc);
-    // ser_.Write(conf_str.str());
-    // ser_.DrainWriteBuffer();
-    // rclcpp::sleep_for(std::chrono::milliseconds(100));
-
-    // conf_str = boost::format("!DC 1 %1%\r") % int(robot_dec);
-    // ser_.Write(conf_str.str());
-    // ser_.DrainWriteBuffer();
-    // rclcpp::sleep_for(std::chrono::milliseconds(100));
-    // conf_str = boost::format("!DC 2 %1%\r") % int(robot_dec);
-    // ser_.Write(conf_str.str());
-    // ser_.DrainWriteBuffer();
-    // rclcpp::sleep_for(std::chrono::milliseconds(100));
 
     RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Successfully initialized!");
     return CallbackReturn::SUCCESS;
@@ -319,18 +264,11 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_deactivate(co
 hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/)
 {
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "read");
-
-    // ser_.Write("?A_?AI_?C_?FF_?T 1_?V 2_?DI\r");
-    // ser_.DrainWriteBuffer();
-
-    double motor_current[2] = {0, };
-    long int current_encoder[2] = {0, };
-
     while(rclcpp::ok())
     {
         recvFeedback[2] = false;
         feedbackHCCall();
-        rclcpp::sleep_for(std::chrono::milliseconds(50));
+        rclcpp::sleep_for(std::chrono::milliseconds(10));
 
         readHW();
         if (recvFeedback[2]) break;
@@ -340,7 +278,7 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
     {
         recvFeedback[0] = false;
         feedbackCall(0);
-        rclcpp::sleep_for(std::chrono::milliseconds(70));
+        rclcpp::sleep_for(std::chrono::milliseconds(10));
 
         readHW();
         if (recvFeedback[0]) break;
@@ -350,92 +288,24 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
     {
         recvFeedback[1] = false;
         feedbackCall(1);
-        rclcpp::sleep_for(std::chrono::milliseconds(70));
+        rclcpp::sleep_for(std::chrono::milliseconds(10));
 
         readHW();
         if (recvFeedback[1]) break;
     }    
 
-    // while(rclcpp::ok())
-    // {
-    //     std::string recv_data;
-    //     // try
-    //     // {
-    //     //     break;
-    //     //     // ser_.ReadLine(recv_data, '\r', 100);
-    //     //     RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "%s", recv_data.c_str());
-    //     //     if(recv_data[0] == 'A' && recv_data[1] == '=')
-    //     //     {
-    //     //         auto data = recv_data.substr(2);
-    //     //         std::vector<std::string> data_array;
-    //     //         boost::split(data_array, data, boost::algorithm::is_any_of(":"));
-    //     //         motor_current[0] = atof(data_array[0].c_str()) / 10.0;
-    //     //         motor_current[1] = atof(data_array[1].c_str()) / 10.0;
-    //     //     }
-    //     //     if(recv_data[0] == 'A' && recv_data[1] == 'I')
-    //     //     {
-    //     //         auto data = recv_data.substr(3);
-    //     //         std::vector<std::string> data_array;
-    //     //         boost::split(data_array, data, boost::algorithm::is_any_of(":"));
-    //     //         charging_voltage_ = atof(data_array[2].c_str());
-    //     //         user_power_current1_ = atof(data_array[3].c_str()) / 1000.0;
-    //     //         user_power_current2_ = atof(data_array[4].c_str()) / 1000.0;
-    //     //     }
-    //     //     if(recv_data[0] == 'C' && recv_data[1] == '=')
-    //     //     {
-    //     //         auto data = recv_data.substr(2);
-    //     //         std::vector<std::string> data_array;
-    //     //         boost::split(data_array, data, boost::algorithm::is_any_of(":"));
-    //     //         current_encoder[0] = atoi(data_array[0].c_str());
-    //     //         current_encoder[1] = atoi(data_array[1].c_str());
-    //     //     }
-    //     //     if(recv_data[0] == 'F' && recv_data[1] == 'F')
-    //     //     {
-    //     //         auto data = recv_data.substr(3);
-    //     //         enable_motor_state_ = atoi(data.c_str()) == 16 ? 0.0 : 1.0;
-    //     //         fault_flags_ = atoi(data.c_str());
-    //     //     }
-    //     //     if(recv_data[0] == 'T' && recv_data[1] == '=')
-    //     //     {
-    //     //         auto data = recv_data.substr(2);
-    //     //         current_temperature_ = atof(data.c_str());
-    //     //     }
-    //     //     if(recv_data[0] == 'V' && recv_data[1] == '=')
-    //     //     {
-    //     //         auto data = recv_data.substr(2);
-    //     //         system_voltage_ = atof(data.c_str()) / 10.0;
-    //     //     }
-    //     //     if(recv_data[0] == 'D' && recv_data[1] == 'I')
-    //     //     {
-    //     //         auto data = recv_data.substr(3);
-    //     //         std::vector<std::string> data_array;
-    //     //         boost::split(data_array, data, boost::algorithm::is_any_of(":"));
-    //     //         estop_button_state_ = atoi(data_array[0].c_str()) == 1 ? 0.0 : 1.0;
-    //     //         break;
-    //     //     }
-    //     // }
-    //     // catch(LibSerial::ReadTimeout &e)
-    //     // {
-    //     //     // assert(false && "Timeout for read motor states...");
-    //     //     break;
-    //     // }
+    hw_positions_[0] += calculate_angle_difference(last_pos_value_[0], pos_value_[0]) / 800.0;
+    hw_positions_[1] += calculate_angle_difference(last_pos_value_[1], pos_value_[1]) / 800.0;
 
-    //     break;
-    // }
-
-    // clock_gettime(CLOCK_MONOTONIC, &end);
-    // auto diff = (end.tv_sec - start.tv_sec) * 1000000000LL + (end.tv_nsec - start.tv_nsec);
-    // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "READ: %lld", diff);
-
-    hw_positions_[0] += (double)(l_last_enc_ - current_encoder[0]) / 16384.0 * (2.0 * M_PI) * -1.0;
-    hw_positions_[1] += (double)(r_last_enc_ - current_encoder[1]) / 16384.0 * (2.0 * M_PI) * -1.0;
     hw_velocities_[0] = 0.0;
     hw_velocities_[1] = 0.0;
-    hw_efforts_[0] = motor_current[0];
-    hw_efforts_[1] = motor_current[1];
+    hw_efforts_[0] = current_value_[0];
+    hw_efforts_[1] = current_value_[1];
 
-    l_last_enc_ = current_encoder[0];
-    r_last_enc_ = current_encoder[1];
+    last_pos_value_[0] = pos_value_[0];
+    last_pos_value_[1] = pos_value_[1];
+
+    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "pos :[ %f, %f], current :[ %f, %f]", hw_positions_[0], hw_positions_[1], hw_efforts_[0], hw_efforts_[1]);
 
     return hardware_interface::return_type::OK;
 }
@@ -443,66 +313,64 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
 hardware_interface::return_type NuriSystemHardwareInterface::write(const rclcpp::Time& /*time*/, const rclcpp::Duration & /*period*/)
 {
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "write");
-    // write command to motor driver
-
-    for (auto i = 0u; i < hw_commands_.size(); i++)
-    {
-        // Simulate sending commands to the hardware
-        RCLCPP_INFO(
-            rclcpp::get_logger("NuriSystemHardwareInterface"), "Got command %.5f for '%s'!", hw_commands_[i],
-            info_.joints[i].name.c_str());
-
-        hw_velocities_[i] = hw_commands_[i];
-    }
-    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Joints successfully written!");
 
     int16_t l_rpm = hw_commands_[0] / (2.0 * M_PI) * 60.0;
     int16_t r_rpm = hw_commands_[1] / (2.0 * M_PI) * 60.0;
 
-    int16_t cmd_l_motor = l_rpm / 200.0 * 1000.0;
-    int16_t cmd_r_motor = r_rpm / 200.0 * 1000.0;
+    // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "rpm =========  %f %f %d %d", hw_commands_[0], hw_commands_[1], l_rpm, r_rpm);
 
-    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "%f %f %d %d", hw_commands_[0], hw_commands_[1], l_rpm, r_rpm);
+    std::vector<uint8_t> mutable_bytearray_left = {0xff, 0xfe, 0x00, 0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01};
+    std::vector<uint8_t> mutable_bytearray_right = {0xff, 0xfe, 0x01, 0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01};
+    uint8_t leftdir = (l_rpm > 0) ? 0x00 : 0x01;
+    uint8_t rightdir = (r_rpm > 0) ? 0x00 : 0x01;
+    int absleftrpm = std::floor(std::abs(l_rpm) * 10);
+    int absrightrpm = std::floor(std::abs(r_rpm) * 10);
 
-    auto cmd_str = boost::format("");
-    if(enable_motor_cmd_ != is_enable_motor_processed_)
+    mutable_bytearray_left[6] = leftdir;
+    mutable_bytearray_right[6] = rightdir;
+
+    mutable_bytearray_left[7] = (absleftrpm >> 8) & 0xFF;
+    mutable_bytearray_left[8] = absleftrpm & 0xFF;
+    mutable_bytearray_right[7] = (absrightrpm >> 8) & 0xFF;
+    mutable_bytearray_right[8] = absrightrpm & 0xFF;
+
+    int sum_val_l = 0;
+    for (size_t i = 2; i < mutable_bytearray_left.size(); ++i)
     {
-        if(enable_motor_cmd_ == 1.0)
-        {
-            cmd_str = boost::format("!MG\r");
-        }
-        else
-        {
-            cmd_str = boost::format("!EX\r");
-        }
+        sum_val_l += mutable_bytearray_left[i];
+    }
+    sum_val_l -= mutable_bytearray_left[4];
 
-        is_enable_motor_processed_ = enable_motor_cmd_;
+    int sum_val_r = 0;
+    for (size_t i = 2; i < mutable_bytearray_right.size(); ++i)
+    {
+        sum_val_r += mutable_bytearray_right[i];
+    }
+    sum_val_r -= mutable_bytearray_right[4];
+
+    uint8_t leftchecksum = ~sum_val_l & 0xFF;
+    uint8_t rightchecksum = ~sum_val_r & 0xFF;
+
+    mutable_bytearray_left[4] = leftchecksum;
+    mutable_bytearray_right[4] = rightchecksum;
+
+    int rc = ::write(port_fd, mutable_bytearray_left.data(), mutable_bytearray_left.size());
+    if (rc < 0)
+    {
+        RCLCPP_ERROR(
+            rclcpp::get_logger("NuriSystemHardwareInterface"), 
+            "Error writing to Nurirobot serial port");
+        return hardware_interface::return_type::ERROR;
     }
 
-    if(is_estop_processed_ != estop_button_state_)
+    rc = ::write(port_fd, mutable_bytearray_right.data(), mutable_bytearray_right.size());
+    if (rc < 0)
     {
-        if(estop_button_state_ == 1.0)
-        {
-            cmd_str = boost::format("!EX\r");
-        }
-        else
-        {
-            cmd_str = boost::format("!MG\r");
-        }
-        is_estop_processed_ = estop_button_state_;
+        RCLCPP_ERROR(
+            rclcpp::get_logger("NuriSystemHardwareInterface"), 
+            "Error writing to Nurirobot serial port");
+        return hardware_interface::return_type::ERROR;
     }
-
-    if(enable_motor_state_ == 1.0 && estop_button_state_ == 0 && enable_motor_cmd_ == 1.0)
-    {
-        cmd_str = boost::format("!G 1 %1%_!G 2 %2%\r") % cmd_l_motor % cmd_r_motor;
-        RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "%s", cmd_str.str().c_str());
-    }
-
-    // ser_.Write(cmd_str.str());
-    // ser_.DrainWriteBuffer();
-    // ser_.Write("!B 3 1\r");
-    // ser_.DrainWriteBuffer();
-    // ser_.FlushIOBuffers();
 
     return hardware_interface::return_type::OK;
 }
@@ -672,8 +540,16 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::protocol_recv(uint8_t byte)
                     msgspeed->speed = tmp1.getValueSpeed() * 0.1f;
                     // speed_pub_->publish(*msgspeed);
 
-                    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "msgpos->id : %d msgpos->pos : %d", msgpos->id, msgpos->pos);
+                    RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "msgpos->id : %d msgpos->pos : %d", msgpos->id, msgpos->pos);
                     recvFeedback[msg.id == 0? 0 : 1] = true;
+                    current_value_[msg.id == 0? 0 : 1] = tmp1.current / 10.0f;
+
+                    pos_value_[msg.id == 0? 0: 1] = msgpos->pos;
+                    if (!recvLastPos[msg.id == 0? 0: 1]) {
+                        last_pos_value_[msg.id == 0? 0: 1] = msgpos->pos;
+                        recvLastPos[msg.id == 0? 0: 1] = true;
+                        RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "=========================== init pos ==============");
+                    }
                     break;
                 }
                 default:
@@ -711,6 +587,8 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::readHW()
         {
             protocol_recv(c);
         }
+
+        // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "readHW");
 
         if (r < 0 && errno != EAGAIN)
             RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Reading failed: %d", r);

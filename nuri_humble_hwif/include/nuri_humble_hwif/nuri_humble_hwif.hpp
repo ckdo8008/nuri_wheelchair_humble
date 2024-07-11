@@ -106,11 +106,16 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         double is_estop_processed_;
         double is_enable_motor_processed_;
 
-        std::vector<int32_t> last_encoder_value_;
+        // std::vector<int32_t> last_encoder_value_;
         std::vector<double> hw_commands_;
         std::vector<double> hw_positions_;
         std::vector<double> hw_velocities_;
         std::vector<double> hw_efforts_;
+
+
+        std::vector<uint16_t> last_pos_value_;
+        std::vector<uint16_t> pos_value_;
+        std::vector<uint16_t> current_value_;
 
 
         unsigned int msg_len = 0;
@@ -127,6 +132,7 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         bool firstrun = true;
 
         bool recvFeedback[3] = {false, false, false};
+        bool recvLastPos[2] = {false, false};
 
         rclcpp::Clock clock_;
         int port_fd;
@@ -146,6 +152,22 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         float convertRange(float input)
         {
             return 2.0 * (input - 512.0) / 1023.0;
+        }
+
+        int calculate_angle_difference(uint16_t prev_angle, uint16_t current_angle)
+        {
+            int diff = current_angle - prev_angle;
+
+            if (diff > 32766)
+            { // 반대 방향으로 큰 변화가 감지된 경우 (0에서 65533로의 점프)
+                diff -= 65533;
+            }
+            else if (diff < -32766)
+            { // 반대 방향으로 큰 변화가 감지된 경우 (65533에서 0으로의 점프)
+                diff += 65533;
+            }
+
+            return diff;
         }
 };
 } // namespace nuri_humble_hwif
