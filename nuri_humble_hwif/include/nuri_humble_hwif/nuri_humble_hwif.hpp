@@ -106,7 +106,7 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
 
         void feedbackCall(uint8_t id);
         void setRemote_callback(std_msgs::msg::Bool::UniquePtr msg);
-        void byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg);
+        // void byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg);
 
     private:
         // LibSerial::SerialPort ser_;
@@ -200,7 +200,7 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         rclcpp::Publisher<nurirobot_msgs::msg::HCControl>::SharedPtr hc_ctrl_pub_;
         rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr hc_joy_pub_;
 
-        rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr rawdata_sub_;
+        // rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr rawdata_sub_;
         rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr remote_sub_;
 
         std::thread spin_thread_;

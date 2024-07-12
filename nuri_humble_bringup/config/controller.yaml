@@ -55,7 +55,7 @@ diffbot_base_controller:
         has_velocity_limits: true
         has_acceleration_limits: true
         has_jerk_limits: false
-        max_velocity: 2.5
-        min_velocity: -2.5
+        max_velocity: 1.5
+        min_velocity: -1.5
         max_acceleration: 2.5
         min_acceleration: -2.5

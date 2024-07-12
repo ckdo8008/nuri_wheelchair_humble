@@ -630,30 +630,30 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::setRemote_callback(std_msgs:
     }
 }
 
-void nuri_humble_hwif::NuriSystemHardwareInterface::byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg)
-{
-    if (port_fd == -1)
-    {
-        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Attempt to write on closed serial");
-        return;
-    }
+// void nuri_humble_hwif::NuriSystemHardwareInterface::byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg)
+// {
+//     if (port_fd == -1)
+//     {
+//         RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Attempt to write on closed serial");
+//         return;
+//     }
 
-    int rc = ::write(port_fd, msg->data.data(), msg->data.size());
-    if (rc < 0)
-    {
-        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
-        return;
-    }
+//     int rc = ::write(port_fd, msg->data.data(), msg->data.size());
+//     if (rc < 0)
+//     {
+//         RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
+//         return;
+//     }
 
-    // std::ostringstream hex_stream;
+//     // std::ostringstream hex_stream;
 
-    // for (auto byte : msg->data) {
-    //     hex_stream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-    // }
+//     // for (auto byte : msg->data) {
+//     //     hex_stream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+//     // }
 
-    // std::string hex_string = hex_stream.str();
-    // RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "size: %d, mc_rawdata : %s", msg->data.size(), hex_string);
-}
+//     // std::string hex_string = hex_stream.str();
+//     // RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "size: %d, mc_rawdata : %s", msg->data.size(), hex_string);
+// }
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(
