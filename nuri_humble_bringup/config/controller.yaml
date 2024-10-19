@@ -22,6 +22,7 @@ diffbot_base_controller:
     wheel_separation_multiplier: 1.0
     left_wheel_radius_multiplier: 1.0
     right_wheel_radius_multiplier: -1.0
+    # right_wheel_radius_multiplier: 1.0
 
     publish_rate: 20.0
     odom_frame_id: odom
@@ -45,17 +46,15 @@ diffbot_base_controller:
         has_velocity_limits: true
         has_acceleration_limits: true
         has_jerk_limits: false
-        max_velocity: 1.5
+        max_velocity: 1.0
         min_velocity: -1.0
-        max_acceleration: 3.2
-        min_acceleration: -3.2
+        max_acceleration: 1.0
 
     angular:
       z:
         has_velocity_limits: true
         has_acceleration_limits: true
         has_jerk_limits: false
-        max_velocity: 1.5
-        min_velocity: -1.5
-        max_acceleration: 2.5
-        min_acceleration: -2.5
+        max_velocity: 1.0
+        min_velocity: -1.0
+        max_acceleration: 1.0

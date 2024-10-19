@@ -279,12 +279,13 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_deactivate(co
 hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/)
 {
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "read");
+    std::lock_guard<std::mutex> lock(serial_mutex_);
     int cnt = 0;
     while(rclcpp::ok())
     {
         recvFeedback[2] = false;
         feedbackHCCall();
-        rclcpp::sleep_for(std::chrono::milliseconds(10));
+        rclcpp::sleep_for(std::chrono::milliseconds(20));
 
         readHW();
         if (recvFeedback[2]) break;
@@ -296,7 +297,7 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
     {
         recvFeedback[0] = false;
         feedbackCall(0);
-        rclcpp::sleep_for(std::chrono::milliseconds(10));
+        rclcpp::sleep_for(std::chrono::milliseconds(20));
 
         readHW();
         if (recvFeedback[0]) break;
@@ -308,7 +309,7 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
     {
         recvFeedback[1] = false;
         feedbackCall(1);
-        rclcpp::sleep_for(std::chrono::milliseconds(10));
+        rclcpp::sleep_for(std::chrono::milliseconds(20));
 
         readHW();
         if (recvFeedback[1]) break;
@@ -334,63 +335,93 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
 hardware_interface::return_type NuriSystemHardwareInterface::write(const rclcpp::Time& /*time*/, const rclcpp::Duration & /*period*/)
 {
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "write");
-
-    int16_t l_rpm = hw_commands_[0] / (2.0 * M_PI) * 60.0;
-    int16_t r_rpm = hw_commands_[1] / (2.0 * M_PI) * 60.0;
+    std::lock_guard<std::mutex> lock(serial_mutex_);
+    // int16_t l_rpm = hw_commands_[0] / (2.0 * M_PI) * 420;
+    // int16_t r_rpm = hw_commands_[1] / (2.0 * M_PI) * 420;
+    int16_t l_rpm = hw_commands_[0] / 90.0 * 420;
+    int16_t r_rpm = hw_commands_[1] / 90.0 * 420;
 
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "rpm =========  %f %f %d %d", hw_commands_[0], hw_commands_[1], l_rpm, r_rpm);
 
-    std::vector<uint8_t> mutable_bytearray_left = {0xff, 0xfe, 0x00, 0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01};
-    std::vector<uint8_t> mutable_bytearray_right = {0xff, 0xfe, 0x01, 0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01};
-    uint8_t leftdir = (l_rpm > 0) ? 0x00 : 0x01;
-    uint8_t rightdir = (r_rpm > 0) ? 0x00 : 0x01;
-    int absleftrpm = std::floor(std::abs(l_rpm) * 10);
-    int absrightrpm = std::floor(std::abs(r_rpm) * 10);
 
-    mutable_bytearray_left[6] = leftdir;
-    mutable_bytearray_right[6] = rightdir;
+    if (l_rpm == 0.0 && r_rpm == 0.0) {
+        std::vector<uint8_t> mutable_stoparray_left = {0xff, 0xfe, 0x00, 0x06, 0xf6, 0x02, 0x00, 0x00, 0x00, 0x01};
+        std::vector<uint8_t> mutable_stoparray_right = {0xff, 0xfe, 0x01, 0x06, 0xf5, 0x02, 0x00, 0x00, 0x00, 0x01};
+        int rc = ::write(port_fd, mutable_stoparray_left.data(), mutable_stoparray_left.size());
+        if (rc < 0)
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("NuriSystemHardwareInterface"), 
+                "Error writing to Nurirobot serial port");
+            return hardware_interface::return_type::ERROR;
+        }
 
-    mutable_bytearray_left[7] = (absleftrpm >> 8) & 0xFF;
-    mutable_bytearray_left[8] = absleftrpm & 0xFF;
-    mutable_bytearray_right[7] = (absrightrpm >> 8) & 0xFF;
-    mutable_bytearray_right[8] = absrightrpm & 0xFF;
-
-    int sum_val_l = 0;
-    for (size_t i = 2; i < mutable_bytearray_left.size(); ++i)
-    {
-        sum_val_l += mutable_bytearray_left[i];
+        rc = ::write(port_fd, mutable_stoparray_right.data(), mutable_stoparray_right.size());
+        if (rc < 0)
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("NuriSystemHardwareInterface"), 
+                "Error writing to Nurirobot serial port");
+            return hardware_interface::return_type::ERROR;
+        }
     }
-    sum_val_l -= mutable_bytearray_left[4];
+    else {
+        std::vector<uint8_t> mutable_bytearray_left = {0xff, 0xfe, 0x00, 0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01};
+        std::vector<uint8_t> mutable_bytearray_right = {0xff, 0xfe, 0x01, 0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01};
 
-    int sum_val_r = 0;
-    for (size_t i = 2; i < mutable_bytearray_right.size(); ++i)
-    {
-        sum_val_r += mutable_bytearray_right[i];
-    }
-    sum_val_r -= mutable_bytearray_right[4];
+        uint8_t leftdir = (l_rpm > 0) ? 0x00 : 0x01;
+        uint8_t rightdir = (r_rpm > 0) ? 0x00 : 0x01;
+        // int absleftrpm = std::floor(std::abs(l_rpm) * 10);
+        // int absrightrpm = std::floor(std::abs(r_rpm) * 10);
 
-    uint8_t leftchecksum = ~sum_val_l & 0xFF;
-    uint8_t rightchecksum = ~sum_val_r & 0xFF;
+        int absleftrpm = 4800 + std::abs(l_rpm) * 10;
+        int absrightrpm = 4800 + std::abs(r_rpm) * 10;
 
-    mutable_bytearray_left[4] = leftchecksum;
-    mutable_bytearray_right[4] = rightchecksum;
+        mutable_bytearray_left[6] = leftdir;
+        mutable_bytearray_right[6] = rightdir;
 
-    int rc = ::write(port_fd, mutable_bytearray_left.data(), mutable_bytearray_left.size());
-    if (rc < 0)
-    {
-        RCLCPP_ERROR(
-            rclcpp::get_logger("NuriSystemHardwareInterface"), 
-            "Error writing to Nurirobot serial port");
-        return hardware_interface::return_type::ERROR;
-    }
+        mutable_bytearray_left[7] = (absleftrpm >> 8) & 0xFF;
+        mutable_bytearray_left[8] = absleftrpm & 0xFF;
+        mutable_bytearray_right[7] = (absrightrpm >> 8) & 0xFF;
+        mutable_bytearray_right[8] = absrightrpm & 0xFF;
 
-    rc = ::write(port_fd, mutable_bytearray_right.data(), mutable_bytearray_right.size());
-    if (rc < 0)
-    {
-        RCLCPP_ERROR(
-            rclcpp::get_logger("NuriSystemHardwareInterface"), 
-            "Error writing to Nurirobot serial port");
-        return hardware_interface::return_type::ERROR;
+        int sum_val_l = 0;
+        for (size_t i = 2; i < mutable_bytearray_left.size(); ++i)
+        {
+            sum_val_l += mutable_bytearray_left[i];
+        }
+        sum_val_l -= mutable_bytearray_left[4];
+
+        int sum_val_r = 0;
+        for (size_t i = 2; i < mutable_bytearray_right.size(); ++i)
+        {
+            sum_val_r += mutable_bytearray_right[i];
+        }
+        sum_val_r -= mutable_bytearray_right[4];
+
+        uint8_t leftchecksum = ~sum_val_l & 0xFF;
+        uint8_t rightchecksum = ~sum_val_r & 0xFF;
+
+        mutable_bytearray_left[4] = leftchecksum;
+        mutable_bytearray_right[4] = rightchecksum;
+
+        int rc = ::write(port_fd, mutable_bytearray_left.data(), mutable_bytearray_left.size());
+        if (rc < 0)
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("NuriSystemHardwareInterface"), 
+                "Error writing to Nurirobot serial port");
+            return hardware_interface::return_type::ERROR;
+        }
+
+        rc = ::write(port_fd, mutable_bytearray_right.data(), mutable_bytearray_right.size());
+        if (rc < 0)
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("NuriSystemHardwareInterface"), 
+                "Error writing to Nurirobot serial port");
+            return hardware_interface::return_type::ERROR;
+        }
     }
 
     return hardware_interface::return_type::OK;
@@ -490,6 +521,15 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::protocol_recv(uint8_t byte)
             {
                 switch (msg.mode)
                 {
+                case 0x02:
+                {
+                    // 속도 제어 신호로 처리하면 피드백 성능이 떨어짐
+                    // 제어 상태에 따라서 모드 변경이 필요
+                    if (remote) {
+                        commandRemoteStart();
+                    }
+                    break;
+                }
                 case 0x03:
                 {
                     // 속도 제어 신호로 처리하면 피드백 성능이 떨어짐
@@ -618,6 +658,7 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::feedbackCall(uint8_t id)
 
 void nuri_humble_hwif::NuriSystemHardwareInterface::setRemote_callback(std_msgs::msg::Bool::UniquePtr msg)
 {
+    std::lock_guard<std::mutex> lock(serial_mutex_);
     remote = msg->data;
 
     if (remote)

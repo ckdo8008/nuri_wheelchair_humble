@@ -33,8 +33,6 @@ struct TeleopJoy::Impl
   void cb_frontr(const sensor_msgs::msg::Range::SharedPtr msg);
   void cb_left(const sensor_msgs::msg::Range::SharedPtr msg);
   void cb_right(const sensor_msgs::msg::Range::SharedPtr msg);
-  void cb_back(const sensor_msgs::msg::Range::SharedPtr msg);
-  void cb_bottom(const sensor_msgs::msg::Range::SharedPtr msg);
 
   void cb_rleft(const sensor_msgs::msg::Range::SharedPtr msg);
   void cb_rright(const sensor_msgs::msg::Range::SharedPtr msg);
@@ -59,8 +57,6 @@ struct TeleopJoy::Impl
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_fr;
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_l;
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_r;
-  rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_bk;
-  rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_bt;
 
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_rl;
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr sub_rr;
@@ -86,6 +82,13 @@ struct TeleopJoy::Impl
   double max_fwd_vel = 1.0;
   double max_rev_m_s = 0.4;
   double max_deg_s = 0.3;
+
+  /*
+    max_fwd_vel = 2.4;
+  max_rev_m_s = 2.0;
+  max_deg_s = 1.5;
+
+  */
 
   bool chk_forward = false;
   bool chk_left_side = false;
@@ -142,7 +145,7 @@ TeleopJoy::TeleopJoy(const rclcpp::NodeOptions &options) : Node("nuri_joy_node",
 
   pimpl_->cmd_vel_pub = this->create_publisher<geometry_msgs::msg::TwistStamped>("diffbot_base_controller/cmd_vel", 10);
   pimpl_->pub_raw = this->create_publisher<std_msgs::msg::ByteMultiArray>("mc_rawdata", 10);
-  pimpl_->joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("hc/joy", rclcpp::QoS(10),
+  pimpl_->joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("hc/joy_smart", rclcpp::QoS(10),
                                                                      std::bind(&TeleopJoy::Impl::joyCallback, this->pimpl_, std::placeholders::_1));
   pimpl_->sub_scan = this->create_subscription<sensor_msgs::msg::LaserScan>("scan", rclcpp::QoS(10),
                                                                             std::bind(&TeleopJoy::Impl::cb_scan, this->pimpl_, std::placeholders::_1));
@@ -170,6 +173,10 @@ TeleopJoy::TeleopJoy(const rclcpp::NodeOptions &options) : Node("nuri_joy_node",
 
   pimpl_->sub_hc = this->create_subscription<nurirobot_msgs::msg::HCControl>(
       "hc/control", rclcpp::QoS(10), std::bind(&TeleopJoy::Impl::cb_hc, this->pimpl_, std::placeholders::_1));
+
+  // max_fwd_vel = 2.4;
+  // max_rev_m_s = 2.0;
+  // max_deg_s = 1.5;
 
   pimpl_->twist_ = geometry_msgs::msg::TwistStamped();
   pimpl_->timer_ = this->create_wall_timer(
@@ -205,7 +212,6 @@ void TeleopJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr joy_msg
       rot = 0;  
     }
   }
-  // printf("joyCallback  1:%f 0:%f fow: %f rot: %f\n", joy_msg->axes[1], joy_msg->axes[0], fow, rot );
 }
 
 void TeleopJoy::Impl::cb_scan(const sensor_msgs::msg::LaserScan::SharedPtr msg)
@@ -397,67 +403,56 @@ void TeleopJoy::Impl::cb_hc(const nurirobot_msgs::msg::HCControl::SharedPtr msg)
 {
   speedstep = msg->speed;
 
-  switch (speedstep)
-  {
-  case 1:
-    /* code */
-    // max_fwd_vel = 1.0;
-    // max_rev_m_s = 0.8;
-    // max_deg_s = 1.0;
-    max_fwd_vel = 0.6;
-    max_rev_m_s = 0.4;
-    max_deg_s = 0.3;        
-    break;
-  case 2:
-    /* code */
-    // max_fwd_vel = 1.4;
-    // max_rev_m_s = 1.2;
-    // max_deg_s = 1.2;
-    max_fwd_vel = 0.7;
-    max_rev_m_s = 0.4;
-    max_deg_s = 0.3;        
-    break;
-  case 3:
-    /* code */
-    // max_fwd_vel = 1.8;
-    // max_rev_m_s = 1.6;
-    // max_deg_s = 1.5;
-    max_fwd_vel = 0.8;
-    max_rev_m_s = 0.4;
-    max_deg_s = 0.3;      
-    break;
-  case 4:
-    /* code */
-    // max_fwd_vel = 2.4;
-    // max_rev_m_s = 2.0;
-    // max_deg_s = 1.5;
-    max_fwd_vel = 0.9;
-    max_rev_m_s = 0.4;
-    max_deg_s = 0.3;    
-    break;
+  // switch (speedstep)
+  // {
+  // case 1:
+  //   /* code */
+  //   max_fwd_vel = 1.0;
+  //   max_rev_m_s = 0.8;
+  //   max_deg_s = 1.0;
+  //   break;
+  // case 2:
+  //   /* code */
+  //   max_fwd_vel = 1.4;
+  //   max_rev_m_s = 1.2;
+  //   max_deg_s = 1.2;
+  //   break;
+  // case 3:
+  //   /* code */
+  //   max_fwd_vel = 1.8;
+  //   max_rev_m_s = 1.6;
+  //   max_deg_s = 1.5;
+  //   break;
+  // case 4:
+  //   /* code */
+  //   max_fwd_vel = 2.4;
+  //   max_rev_m_s = 2.0;
+  //   max_deg_s = 1.5;
+  //   break;
   // case 5:
   //   /* code */
   //   max_fwd_vel = 2.8;
   //   max_rev_m_s = 2.0;
   //   max_deg_s = 1.5;
   //   break;
-  default:
-    max_fwd_vel = 1.0;
-    max_rev_m_s = 0.4;
-    max_deg_s = 0.3;
-    break;  
-  }
+  // default:
+  //   max_fwd_vel = 1.0;
+  //   max_rev_m_s = 0.8;
+  //   max_deg_s = 1.0;
+  //   break;  
+  // }
 }
 
 void TeleopJoy::Impl::cb_timer()
 {
 
   // printf("fow : %f, rot : %f %s %s\n", fow, rot, chk_ul_fl ? "true": "false", chk_ul_fr ? "true": "false");
-  // printf("chk_ul_l: %s chk_ul_r: %s chk_left_side:%s chk_right_side:%s\n", 
-  // chk_ul_l ? "true": "false", 
-  // chk_ul_r ? "true": "false", 
-  // chk_left_side ? "true": "false", 
-  // chk_right_side ? "true": "false");
+  printf("chk_ul_l: %s chk_ul_r: %s chk_left_side:%s chk_right_side:%s chk_forward:%s\n", 
+  chk_ul_l ? "true": "false", 
+  chk_ul_r ? "true": "false", 
+  chk_left_side ? "true": "false", 
+  chk_right_side ? "true": "false",
+  chk_forward ? "true": "false");
   if ((lastfow > 0 && fow < 0) || (lastfow < 0 && fow > 0))
   {
     fow = 0;
@@ -482,6 +477,7 @@ void TeleopJoy::Impl::cb_timer()
   {
     rot = 0;
   }
+
 
   lastfow = fow;
 

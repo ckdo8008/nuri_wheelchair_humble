@@ -44,6 +44,8 @@
 #include <cstring>
 #include <cstdint>
 #include <thread>
+#include <mutex>
+
 
 
 #include "protocol.hpp"
@@ -204,6 +206,7 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr remote_sub_;
 
         std::thread spin_thread_;
+        std::mutex serial_mutex_;
 };
 } // namespace nuri_humble_hwif
 

@@ -7,7 +7,7 @@
       <xacro:unless value="${use_mock_hardware}">
         <hardware>
             <plugin>nuri_humble_hwif/NuriSystemHardwareInterface</plugin>
-            <param name="port_name">/dev/ttyUSB0</param>
+            <param name="port_name">/dev/ttyUSB</param>
             <param name="baudrate">38400</param>
             <param name="robot_acceleration">1</param>
         </hardware>
