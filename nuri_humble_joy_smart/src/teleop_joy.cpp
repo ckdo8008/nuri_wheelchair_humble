@@ -7,7 +7,8 @@
 #include <chrono>
 #include <cmath>
 
-#include <geometry_msgs/msg/twist_stamped.hpp>
+// #include <geometry_msgs/msg/twist_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rcutils/logging_macros.h>
@@ -48,7 +49,8 @@ struct TeleopJoy::Impl
   void sendControlOn();
   double gen_profile(double v_ref, double vout, double dt = 0.12, double amax = 0.8);
 
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cmd_vel_pub;
+  // rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cmd_vel_pub;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub;
   rclcpp::Publisher<std_msgs::msg::ByteMultiArray>::SharedPtr pub_raw;
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub;
@@ -71,7 +73,8 @@ struct TeleopJoy::Impl
 
   void cb_timer();
   rclcpp::TimerBase::SharedPtr timer_;
-  geometry_msgs::msg::TwistStamped twist_;
+  // geometry_msgs::msg::TwistStamped twist_;
+  geometry_msgs::msg::Twist twist_;
 
   double target_linear_ = 0.0, target_angular_ = 0.0;
   double current_linear_ = 0.0, current_angular_ = 0.0;
@@ -80,8 +83,8 @@ struct TeleopJoy::Impl
   bool haveSameSign(double a, double b);
 
   double max_fwd_vel = 1.0;
-  double max_rev_m_s = 0.4;
-  double max_deg_s = 0.3;
+  double max_rev_m_s = 0.5;
+  double max_deg_s = 0.4;
 
   /*
     max_fwd_vel = 2.4;
@@ -143,7 +146,7 @@ TeleopJoy::TeleopJoy(const rclcpp::NodeOptions &options) : Node("nuri_joy_node",
   pimpl_ = new Impl;
   pimpl_->node_ = this;
 
-  pimpl_->cmd_vel_pub = this->create_publisher<geometry_msgs::msg::TwistStamped>("diffbot_base_controller/cmd_vel", 10);
+  pimpl_->cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("base_controller/cmd_vel_unstamped", 10);
   pimpl_->pub_raw = this->create_publisher<std_msgs::msg::ByteMultiArray>("mc_rawdata", 10);
   pimpl_->joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("hc/joy_smart", rclcpp::QoS(10),
                                                                      std::bind(&TeleopJoy::Impl::joyCallback, this->pimpl_, std::placeholders::_1));
@@ -178,7 +181,8 @@ TeleopJoy::TeleopJoy(const rclcpp::NodeOptions &options) : Node("nuri_joy_node",
   // max_rev_m_s = 2.0;
   // max_deg_s = 1.5;
 
-  pimpl_->twist_ = geometry_msgs::msg::TwistStamped();
+  // pimpl_->twist_ = geometry_msgs::msg::TwistStamped();
+  pimpl_->twist_ = geometry_msgs::msg::Twist();
   pimpl_->timer_ = this->create_wall_timer(
       std::chrono::milliseconds(100),
       std::bind(&TeleopJoy::Impl::cb_timer, this->pimpl_));
@@ -199,7 +203,7 @@ void TeleopJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr joy_msg
   }
 
   fow = joy_msg->axes[1];
-  rot = joy_msg->axes[0] * -1;
+  rot = joy_msg->axes[0];
 
   if ((fow >= 0 && fow <= 0.05) || (fow < 0 && fow >= -0.05)) {
     if ((rot >= 0 && rot <= 0.05) || (rot < 0 && rot >= -0.05)) {
@@ -230,7 +234,7 @@ void TeleopJoy::Impl::cb_frontl(const sensor_msgs::msg::Range::SharedPtr msg)
   kf_state_fl = corrected_estimate;
   kf_estimated_error = (1 - blending_factor) * priori_error;
 
-  if (kf_state_fl < 1.0) {
+  if (kf_state_fl < 0.5) {
     chk_ul_fl = true;
   } else {
     chk_ul_fl = false;
@@ -447,33 +451,36 @@ void TeleopJoy::Impl::cb_timer()
 {
 
   // printf("fow : %f, rot : %f %s %s\n", fow, rot, chk_ul_fl ? "true": "false", chk_ul_fr ? "true": "false");
-  printf("chk_ul_l: %s chk_ul_r: %s chk_left_side:%s chk_right_side:%s chk_forward:%s\n", 
-  chk_ul_l ? "true": "false", 
-  chk_ul_r ? "true": "false", 
+  printf("fow : %f, rot : %f, chk_ul_fl: %s chk_ul_fr: %s chk_left_side:%s chk_right_side:%s chk_forward:%s chk_ul_bl:%s chk_ul_br: %s\n", 
+  fow, rot,
+  chk_ul_fl ? "true": "false", 
+  chk_ul_fr ? "true": "false", 
   chk_left_side ? "true": "false", 
   chk_right_side ? "true": "false",
-  chk_forward ? "true": "false");
+  chk_forward ? "true": "false",
+  chk_ul_bl ? "true": "false",
+  chk_ul_br ? "true": "false");
   if ((lastfow > 0 && fow < 0) || (lastfow < 0 && fow > 0))
   {
     fow = 0;
   }
 
-  if (fow > 0 && !(chk_ul_fl || chk_ul_fr))
-  {
-    fow = 0;
-  }
+  // if (fow > 0 && (chk_ul_fl || chk_ul_fr))
+  // {
+  //   fow = 0;
+  // }
 
-  if (fow < 0 && !(chk_ul_bl || chk_ul_br))
-  {
-    fow = 0;
-  }
+  // if (fow < 0 && (chk_ul_bl || chk_ul_br))
+  // {
+  //   fow = 0;
+  // }
 
-  if (rot > 0 && !(chk_ul_l || chk_ul_rl))
+  if (rot > 0 && (chk_ul_l || chk_ul_rl))
   {
     rot = 0;
   }
 
-  if (rot < 0 && !(chk_ul_r || chk_ul_rr))
+  if (rot < 0 && (chk_ul_r || chk_ul_rr))
   {
     rot = 0;
   }
@@ -495,20 +502,35 @@ void TeleopJoy::Impl::cb_timer()
     forw_prof = 0;
   }
 
-  if ((chk_left_side && rot > 0) || (chk_right_side && rot < 0))
+  // if ((chk_left_side && rot > 0) || (chk_right_side && rot < 0))
+  // {
+  //   rot = 0;
+  // }
+  if (chk_left_side && rot > 0)
   {
     rot = 0;
-  }
+  }  
+
+    if (chk_right_side && rot < 0)
+  {
+    rot = 0;
+  }  
 
 
-  twist_.header.stamp = node_->now();
+  // twist_.header.stamp = node_->now();
 
-  twist_.twist.linear.x = (forw_prof >= 0) ? forw_prof * max_fwd_vel : forw_prof * max_rev_m_s;
-  twist_.twist.angular.z = rot * max_deg_s;
-  twist_.twist.linear.y = 0.0;
-  twist_.twist.linear.z = 0.0;
-  twist_.twist.angular.x = 0.0;
-  twist_.twist.angular.y = 0.0;
+  // twist_.twist.linear.x = (forw_prof >= 0) ? forw_prof * max_fwd_vel : forw_prof * max_rev_m_s;
+  // twist_.twist.angular.z = rot * max_deg_s;
+  // twist_.twist.linear.y = 0.0;
+  // twist_.twist.linear.z = 0.0;
+  // twist_.twist.angular.x = 0.0;
+  // twist_.twist.angular.y = 0.0;
+  twist_.linear.x = (forw_prof >= 0) ? forw_prof * max_fwd_vel : forw_prof * max_rev_m_s;
+  twist_.angular.z = rot * max_deg_s;
+  twist_.linear.y = 0.0;
+  twist_.linear.z = 0.0;
+  twist_.angular.x = 0.0;
+  twist_.angular.y = 0.0;
   
   /*
    message.header.stamp = this->now();
@@ -522,7 +544,6 @@ void TeleopJoy::Impl::cb_timer()
     message.twist.angular.y = 0.0;
     message.twist.angular.z = 0.5;
   */
-
 
   cmd_vel_pub->publish(twist_);
 }
@@ -561,9 +582,9 @@ void TeleopJoy::Impl::laser_scan_to_points(const sensor_msgs::msg::LaserScan::Sh
 
 void TeleopJoy::Impl::check_stop()
 {
-  chk_forward = false;
-  chk_left_side = false;
-  chk_right_side = false;
+  bool lchk_forward = false;
+  bool lchk_left_side = false;
+  bool lchk_right_side = false;
 
   for (auto &point : points_)
   {
@@ -589,21 +610,25 @@ void TeleopJoy::Impl::check_stop()
         if (centerX - 20 <= dx && dx <= centerX + 220)
         {
           if (centerY >= dy && dy >= centerY - 200)
-            chk_forward = true;
+            lchk_forward = true;
         }
         else
         {
           if (ratio < 0.10)
           {
-            if (dx < centerX + 20)
-              chk_left_side = true;
-            else if (dx > centerX + 180)
-              chk_right_side = true;
+            if (dx < centerX + 10)
+              lchk_left_side = true;
+            else if (dx > centerX + 170)
+              lchk_right_side = true;
           }
         }
       }
     }
   }
+
+  chk_forward = lchk_forward;
+  chk_left_side = lchk_left_side;
+  chk_right_side = lchk_right_side;
 }
 
 void TeleopJoy::Impl::sendControlOn()

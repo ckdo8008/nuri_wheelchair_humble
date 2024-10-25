@@ -7,7 +7,8 @@
 #include <chrono>
 #include <cmath>
 
-#include <geometry_msgs/msg/twist_stamped.hpp>
+// #include <geometry_msgs/msg/twist_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rcutils/logging_macros.h>
@@ -50,7 +51,7 @@ struct TeleopJoy::Impl
   void sendControlOn();
   double gen_profile(double v_ref, double vout, double dt = 0.12, double amax = 0.8);
 
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cmd_vel_pub;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub;
   rclcpp::Publisher<std_msgs::msg::ByteMultiArray>::SharedPtr pub_raw;
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub;
@@ -75,7 +76,7 @@ struct TeleopJoy::Impl
 
   void cb_timer();
   rclcpp::TimerBase::SharedPtr timer_;
-  geometry_msgs::msg::TwistStamped twist_;
+  geometry_msgs::msg::Twist twist_;
 
   double target_linear_ = 0.0, target_angular_ = 0.0;
   double current_linear_ = 0.0, current_angular_ = 0.0;
@@ -140,7 +141,7 @@ TeleopJoy::TeleopJoy(const rclcpp::NodeOptions &options) : Node("nuri_joy_node",
   pimpl_ = new Impl;
   pimpl_->node_ = this;
 
-  pimpl_->cmd_vel_pub = this->create_publisher<geometry_msgs::msg::TwistStamped>("diffbot_base_controller/cmd_vel", 10);
+  pimpl_->cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("base_controller/cmd_vel_unstamped", 10);
   pimpl_->pub_raw = this->create_publisher<std_msgs::msg::ByteMultiArray>("mc_rawdata", 10);
   pimpl_->joy_sub = this->create_subscription<sensor_msgs::msg::Joy>("hc/joy", rclcpp::QoS(10),
                                                                      std::bind(&TeleopJoy::Impl::joyCallback, this->pimpl_, std::placeholders::_1));
@@ -171,7 +172,7 @@ TeleopJoy::TeleopJoy(const rclcpp::NodeOptions &options) : Node("nuri_joy_node",
   pimpl_->sub_hc = this->create_subscription<nurirobot_msgs::msg::HCControl>(
       "hc/control", rclcpp::QoS(10), std::bind(&TeleopJoy::Impl::cb_hc, this->pimpl_, std::placeholders::_1));
 
-  pimpl_->twist_ = geometry_msgs::msg::TwistStamped();
+  pimpl_->twist_ = geometry_msgs::msg::Twist();
   pimpl_->timer_ = this->create_wall_timer(
       std::chrono::milliseconds(100),
       std::bind(&TeleopJoy::Impl::cb_timer, this->pimpl_));
@@ -224,7 +225,7 @@ void TeleopJoy::Impl::cb_frontl(const sensor_msgs::msg::Range::SharedPtr msg)
   kf_state_fl = corrected_estimate;
   kf_estimated_error = (1 - blending_factor) * priori_error;
 
-  if (kf_state_fl < 1.0) {
+  if (kf_state_fl < 0.5) {
     chk_ul_fl = true;
   } else {
     chk_ul_fl = false;
@@ -276,7 +277,7 @@ void TeleopJoy::Impl::cb_right(const sensor_msgs::msg::Range::SharedPtr msg)
   kf_state_right = corrected_estimate;
   kf_estimated_error = (1 - blending_factor) * priori_error;
 
-  if (kf_state_right < 0.5) {
+  if (kf_state_right < 0.3) {
     chk_ul_r = true;
   } else {
     chk_ul_r = false;
@@ -294,7 +295,7 @@ void TeleopJoy::Impl::cb_left(const sensor_msgs::msg::Range::SharedPtr msg)
   kf_state_left = corrected_estimate;
   kf_estimated_error = (1 - blending_factor) * priori_error;
 
-  if (kf_state_left < 0.5) {
+  if (kf_state_left < 0.3) {
     chk_ul_l = true;
   } else {
     chk_ul_l = false;
@@ -331,7 +332,7 @@ void TeleopJoy::Impl::cb_rleft(const sensor_msgs::msg::Range::SharedPtr msg)
   kf_state_rleft = corrected_estimate;
   kf_estimated_error = (1 - blending_factor) * priori_error;
 
-  if (kf_state_rleft < 0.5) {
+  if (kf_state_rleft < 0.3) {
     chk_ul_rl= true;
   } else {
     chk_ul_rl = false;
@@ -349,7 +350,7 @@ void TeleopJoy::Impl::cb_rright(const sensor_msgs::msg::Range::SharedPtr msg)
   kf_state_rright = corrected_estimate;
   kf_estimated_error = (1 - blending_factor) * priori_error;
 
-  if (kf_state_rright < 0.5) {
+  if (kf_state_rright < 0.3) {
     chk_ul_rr = true;
   } else {
     chk_ul_rr = false;
@@ -463,22 +464,22 @@ void TeleopJoy::Impl::cb_timer()
     fow = 0;
   }
 
-  if (fow > 0 && !(chk_ul_fl || chk_ul_fr))
-  {
-    fow = 0;
-  }
+  // if (fow > 0 && (chk_ul_fl || chk_ul_fr))
+  // {
+  //   fow = 0;
+  // }
 
-  if (fow < 0 && !(chk_ul_bl || chk_ul_br))
-  {
-    fow = 0;
-  }
+  // if (fow < 0 && (chk_ul_bl || chk_ul_br))
+  // {
+  //   fow = 0;
+  // }
 
-  if (rot > 0 && !(chk_ul_l || chk_ul_rl))
+  if (rot > 0 && (chk_ul_l || chk_ul_rl))
   {
     rot = 0;
   }
 
-  if (rot < 0 && !(chk_ul_r || chk_ul_rr))
+  if (rot < 0 && (chk_ul_r || chk_ul_rr))
   {
     rot = 0;
   }
@@ -499,20 +500,30 @@ void TeleopJoy::Impl::cb_timer()
     forw_prof = 0;
   }
 
-  if ((chk_left_side && rot > 0) || (chk_right_side && rot < 0))
+  if (chk_left_side && rot > 0)
   {
     rot = 0;
-  }
+  }  
 
+    if (chk_right_side && rot < 0)
+  {
+    rot = 0;
+  }  
 
-  twist_.header.stamp = node_->now();
+  // twist_.header.stamp = node_->now();
 
-  twist_.twist.linear.x = (forw_prof >= 0) ? forw_prof * max_fwd_vel : forw_prof * max_rev_m_s;
-  twist_.twist.angular.z = rot * max_deg_s;
-  twist_.twist.linear.y = 0.0;
-  twist_.twist.linear.z = 0.0;
-  twist_.twist.angular.x = 0.0;
-  twist_.twist.angular.y = 0.0;
+  // twist_.twist.linear.x = (forw_prof >= 0) ? forw_prof * max_fwd_vel : forw_prof * max_rev_m_s;
+  // twist_.twist.angular.z = rot * max_deg_s;
+  // twist_.twist.linear.y = 0.0;
+  // twist_.twist.linear.z = 0.0;
+  // twist_.twist.angular.x = 0.0;
+  // twist_.twist.angular.y = 0.0;
+  twist_.linear.x = (forw_prof >= 0) ? forw_prof * max_fwd_vel : forw_prof * max_rev_m_s;
+  twist_.angular.z = rot * max_deg_s;
+  twist_.linear.y = 0.0;
+  twist_.linear.z = 0.0;
+  twist_.angular.x = 0.0;
+  twist_.angular.y = 0.0;
   
   /*
    message.header.stamp = this->now();

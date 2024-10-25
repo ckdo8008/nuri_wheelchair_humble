@@ -102,6 +102,10 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         //
         void commandRemoteStop();
         void commandRemoteStart();
+
+        void commandControlOn();
+        void commandControlOff();
+
         void feedbackHCCall();
         void protocol_recv(uint8_t byte);
         void readHW();
@@ -202,12 +206,16 @@ class NuriSystemHardwareInterface: public hardware_interface::SystemInterface
         rclcpp::Publisher<nurirobot_msgs::msg::HCControl>::SharedPtr hc_ctrl_pub_;
         rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr hc_joy_pub_;
 
-        // rclcpp::Subscription<std_msgs::msg::ByteMultiArray>::SharedPtr rawdata_sub_;
+        rclcpp::Subscription<std_msgs::msg::String>::SharedPtr stringdata_sub_;
         rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr remote_sub_;
+
+        void stringCallback(const std_msgs::msg::String::SharedPtr msg);
 
         std::thread spin_thread_;
         std::mutex serial_mutex_;
+
 };
+static int motorcontrolCMD = 0;
 } // namespace nuri_humble_hwif
 
 #endif //NURI_HUMBLE_HARDWARE_INTERFACE_HPP

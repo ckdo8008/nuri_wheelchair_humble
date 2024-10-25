@@ -42,6 +42,17 @@ typedef struct {
 } FeedbackCallCommand;
 #pragma pack(pop)
 
+#pragma pack(push, 1)
+typedef struct {
+   uint16_t header;
+   uint8_t  id;
+   uint8_t  datasize;
+   uint8_t  checksum;
+   uint8_t  mode;
+   uint8_t  data;
+} FeedbackCallCommandParam;
+#pragma pack(pop)
+
 // 피드백 응답
 #pragma pack(push, 1)
 typedef struct {

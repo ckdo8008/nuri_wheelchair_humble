@@ -31,9 +31,6 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
     hw_efforts_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
-    // last_pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
-    // pos_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
-    // current_value_.resize(2, std::numeric_limits<uint16_t>::quiet_NaN());
     last_pos_value_.resize(2, 0);
     pos_value_.resize(2, 0);
     current_value_.resize(2, 0);
@@ -160,6 +157,9 @@ hardware_interface::CallbackReturn NuriSystemHardwareInterface::on_init(const ha
 
     hc_ctrl_pub_ = node_->create_publisher<nurirobot_msgs::msg::HCControl>("hc/control", 10);
     hc_joy_pub_ = node_->create_publisher<sensor_msgs::msg::Joy>("hc/joy", 10);
+    stringdata_sub_ = node_->create_subscription<std_msgs::msg::String>(
+        "mc_commnadmsg", 10,
+        std::bind(&NuriSystemHardwareInterface::stringCallback, this, std::placeholders::_1));
     spin_thread_ = std::thread([this]() {
         rclcpp::executors::MultiThreadedExecutor executor;
         executor.add_node(node_);
@@ -316,6 +316,16 @@ hardware_interface::return_type NuriSystemHardwareInterface::read(const rclcpp::
         if (cnt++ > 3) break;
     }    
 
+    if (motorcontrolCMD == 1) {
+        motorcontrolCMD = 0;
+        commandControlOn();
+    }
+    else if (motorcontrolCMD == 2) {
+        motorcontrolCMD = 0;
+        commandControlOff();
+    }
+    
+
     hw_positions_[0] += calculate_angle_difference(last_pos_value_[0], pos_value_[0]) / 800.0;
     hw_positions_[1] += calculate_angle_difference(last_pos_value_[1], pos_value_[1]) / 800.0;
 
@@ -371,8 +381,6 @@ hardware_interface::return_type NuriSystemHardwareInterface::write(const rclcpp:
 
         uint8_t leftdir = (l_rpm > 0) ? 0x00 : 0x01;
         uint8_t rightdir = (r_rpm > 0) ? 0x00 : 0x01;
-        // int absleftrpm = std::floor(std::abs(l_rpm) * 10);
-        // int absrightrpm = std::floor(std::abs(r_rpm) * 10);
 
         int absleftrpm = 4800 + std::abs(l_rpm) * 10;
         int absrightrpm = 4800 + std::abs(r_rpm) * 10;
@@ -477,6 +485,57 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::feedbackHCCall()
     {
         RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
     }    
+}
+
+void nuri_humble_hwif::NuriSystemHardwareInterface::commandControlOn()
+{
+    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "commandControlOn");
+    FeedbackCallCommandParam command;
+    command.header = (uint16_t)START_FRAME;
+    command.id = (uint8_t)0x00;
+    command.datasize = (uint8_t)0x03;
+    command.mode = (uint8_t)0x0c;
+    command.data = (uint8_t)0x00;
+    command.checksum = ~(uint8_t)(command.id + command.datasize + command.mode + command.data);
+    int rc = ::write(port_fd, (const void *)&command, sizeof(command));
+    if (rc < 0)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
+    }    
+
+    command.id = (uint8_t)0x01;
+    command.checksum = ~(uint8_t)(command.id + command.datasize + command.mode + command.data);
+    rc = ::write(port_fd, (const void *)&command, sizeof(command));
+    if (rc < 0)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
+    }      
+}
+
+void nuri_humble_hwif::NuriSystemHardwareInterface::commandControlOff()
+{
+    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "commandControlOff");
+    FeedbackCallCommandParam command;
+    command.header = (uint16_t)START_FRAME;
+    command.id = (uint8_t)0x00;
+    command.datasize = (uint8_t)0x03;
+    command.mode = (uint8_t)0x0c;
+    command.data = (uint8_t)0x01;
+    command.checksum = ~(uint8_t)(command.id + command.datasize + command.mode + command.data);
+
+    int rc = ::write(port_fd, (const void *)&command, sizeof(command));
+    if (rc < 0)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
+    }
+
+    command.id = (uint8_t)0x01;
+    command.checksum = ~(uint8_t)(command.id + command.datasize + command.mode + command.data);
+    rc = ::write(port_fd, (const void *)&command, sizeof(command));
+    if (rc < 0)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
+    }         
 }
 
 void nuri_humble_hwif::NuriSystemHardwareInterface::protocol_recv(uint8_t byte)
@@ -671,30 +730,20 @@ void nuri_humble_hwif::NuriSystemHardwareInterface::setRemote_callback(std_msgs:
     }
 }
 
-// void nuri_humble_hwif::NuriSystemHardwareInterface::byteMultiArrayCallback(const std_msgs::msg::ByteMultiArray::SharedPtr msg)
-// {
-//     if (port_fd == -1)
-//     {
-//         RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Attempt to write on closed serial");
-//         return;
-//     }
+void nuri_humble_hwif::NuriSystemHardwareInterface::stringCallback(const std_msgs::msg::String::SharedPtr msg) {
+    RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "Message received: %s", msg->data.c_str());
 
-//     int rc = ::write(port_fd, msg->data.data(), msg->data.size());
-//     if (rc < 0)
-//     {
-//         RCLCPP_ERROR(rclcpp::get_logger("NuriSystemHardwareInterface"), "Error writing to Nurirobot serial port");
-//         return;
-//     }
-
-//     // std::ostringstream hex_stream;
-
-//     // for (auto byte : msg->data) {
-//     //     hex_stream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-//     // }
-
-//     // std::string hex_string = hex_stream.str();
-//     // RCLCPP_DEBUG(rclcpp::get_logger("NuriSystemHardwareInterface"), "size: %d, mc_rawdata : %s", msg->data.size(), hex_string);
-// }
+    // 문자열 비교 후 motorcontrolCMD 변경
+    if (msg->data == "motorControlOn") {
+        motorcontrolCMD = 1;
+        RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "motorcontrolCMD set to 1 (motorControlOn)");
+    } else if (msg->data == "motorControlOff") {
+        motorcontrolCMD = 2;
+        RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "motorcontrolCMD set to 2 (motorControlOff)");
+    } else {
+        RCLCPP_WARN(rclcpp::get_logger("NuriSystemHardwareInterface"), "Unknown command: %s", msg->data.c_str());
+    }
+}
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(
