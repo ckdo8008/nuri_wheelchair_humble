@@ -348,8 +348,8 @@ hardware_interface::return_type NuriSystemHardwareInterface::write(const rclcpp:
     std::lock_guard<std::mutex> lock(serial_mutex_);
     // int16_t l_rpm = hw_commands_[0] / (2.0 * M_PI) * 420;
     // int16_t r_rpm = hw_commands_[1] / (2.0 * M_PI) * 420;
-    int16_t l_rpm = hw_commands_[0] / 90.0 * 420;
-    int16_t r_rpm = hw_commands_[1] / 90.0 * 420;
+    int16_t l_rpm = hw_commands_[0] / 90.0 * 584;
+    int16_t r_rpm = hw_commands_[1] / 90.0 * 584;
 
     // RCLCPP_INFO(rclcpp::get_logger("NuriSystemHardwareInterface"), "rpm =========  %f %f %d %d", hw_commands_[0], hw_commands_[1], l_rpm, r_rpm);
 
@@ -382,8 +382,8 @@ hardware_interface::return_type NuriSystemHardwareInterface::write(const rclcpp:
         uint8_t leftdir = (l_rpm > 0) ? 0x00 : 0x01;
         uint8_t rightdir = (r_rpm > 0) ? 0x00 : 0x01;
 
-        int absleftrpm = 4800 + std::abs(l_rpm) * 10;
-        int absrightrpm = 4800 + std::abs(r_rpm) * 10;
+        int absleftrpm = 100 + std::abs(l_rpm) * 10;
+        int absrightrpm = 100 + std::abs(r_rpm) * 10;
 
         mutable_bytearray_left[6] = leftdir;
         mutable_bytearray_right[6] = rightdir;
